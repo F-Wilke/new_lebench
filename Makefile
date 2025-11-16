@@ -42,24 +42,34 @@ SYM_CONFIG=-UUSE_VMALLOC -UBYPASS -DUSE_MALLOC -DSYM_ELEVATE
 SYM_CONFIG_NO_ELEVATE=-UUSE_VMALLOC -UBYPASS -DUSE_MALLOC
 SYM_DEBUG=-UDEBUG
 SYM_SYS_LIBS=-pthread
-SYMBI=../Symlib/build/libsym.a ../kallsymlib/libkallsym.a -I ../Symlib/include
+SYMBI=../Symlib/build/libsym.a -I ../Symlib/include
+LKS=-lc -L. -lkallsyms #make link order explicit
 
 SYM_CC_DEBUG=-g
+
+libkallsyms.a:
+	cp /proc/libkallsyms.a ./
+
+libkallsyms.so:
+	cp /proc/libkallsyms.so ./
 
 # lazy
 sym: sym_lebench
 
 sym_lebench: new_lebench.c
-	gcc $< -o new_lebench $(SYM_SYS_LIBS) $(SYM_CONFIG) $(SYM_TESTS) $(SYM_DEBUG) $(SYMBI) $(SYM_CC_DEBUG)
+	gcc $< -o new_lebench $(SYM_SYS_LIBS) $(SYM_CONFIG) $(SYM_TESTS) $(SYM_DEBUG) $(SYMBI) $(LKS) $(SYM_CC_DEBUG)
 
 sym_no_elevate: new_lebench.c
 	gcc $< -o $@ $(SYM_SYS_LIBS) $(SYM_CONFIG_NO_ELEVATE) $(SYM_TESTS) $(SYM_DEBUG)
 
-sym_elevate: new_lebench.c
-	gcc $< -o $@ $(SYM_SYS_LIBS) $(SYM_CONFIG) $(SYM_TESTS) $(SYM_DEBUG) $(SYMBI) $(SYM_CC_DEBUG)
+sym_elevate: sym_elevate.o libkallsyms.so
+	gcc $< -o $@ $(SYM_SYS_LIBS) $(SYM_CONFIG) $(SYM_TESTS) $(SYM_DEBUG) $(SYMBI) $(LKS) $(SYM_CC_DEBUG)
+
+sym_elevate.o: new_lebench.c 
+	gcc -c $< -o $@ $(SYM_SYS_LIBS) $(SYM_CONFIG) $(SYM_TESTS) $(SYM_DEBUG) $(SYMBI) $(SYM_CC_DEBUG)
 
 sym_sc: new_lebench.c
-	gcc $< -o $@ $(SYM_SHORTCUT) $(SYM_SYS_LIBS) $(SYM_CONFIG) $(SYM_TESTS) $(SYM_DEBUG) $(SYMBI) $(SYM_CC_DEBUG)
+	gcc $< -o $@ $(SYM_SHORTCUT) $(SYM_SYS_LIBS) $(SYM_CONFIG) $(SYM_TESTS) $(SYM_DEBUG) $(SYMBI) $(LKS) $(SYM_CC_DEBUG)
 
 BAREMETAL=../baremetal/initrd-tools/init-tools/perf
 init_mitigations:

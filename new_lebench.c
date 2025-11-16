@@ -25,7 +25,11 @@
 #include <pthread.h>
 #include <errno.h>
 
-// #include "LINF/sym_all.h"
+#ifdef SYM_ELEVATE
+
+#include "LINF/sym_all.h"
+
+#endif
 
 #define MAX_SIZE 8192
 #define PF_MAX_SIZE 100 * 4096
