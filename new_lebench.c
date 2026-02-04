@@ -1988,7 +1988,4 @@ int main(void)
 
 	fclose(fp);
 #endif
-#ifdef SYM_ELEVATE
-  sym_lower();
-#endif
 }
