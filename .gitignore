@@ -1,3 +1,7 @@
 *.o
 *.ukl  
 UKL.a
+
+new_lebench
+*.so
+*.csv

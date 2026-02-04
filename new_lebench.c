@@ -525,6 +525,9 @@ void send_bench(int msg_size)
 		}
 		if (forkId == 0)
 		{
+			if (DEBUG)
+				printf("In child process.\n");
+
 			close(fds1[0]); // close the read end of pipe 1
 			close(fds2[1]); // close the write end of pipe 2
 
@@ -556,6 +559,8 @@ void send_bench(int msg_size)
 			// Read update from parent on pipe 2
 			read(fds2[0], &r, 1);
 
+			if (DEBUG)
+				printf("Received data from client, shutting down.\n");
 			// remove sockets and close file descriptors and pipes
 			remove(sock);
 			close(fd_server);
@@ -568,9 +573,14 @@ void send_bench(int msg_size)
 		}
 		else
 		{
+			if (DEBUG)
+				printf("In parent process, child PID: %d\n", forkId);
+				
 			close(fds1[1]); // close the write end of pipe 1
 			close(fds2[0]); // close the read end of pipe 2
 
+			if (DEBUG)
+				printf("Waiting for child to be ready.\n");
 			// Wait for update from child
 			read(fds1[0], &r, 1);
 
@@ -598,7 +608,8 @@ void send_bench(int msg_size)
 #ifdef BYPASS
 			retval = bp_sendto(fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0);
 #else
-			retval = syscall(SYS_sendto, fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0);
+			// retval = syscall(SYS_sendto, fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0);
+			retval = 0;
 #endif
 #endif
 			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
@@ -736,18 +747,19 @@ void recv_bench(int msg_size)
       sym_elevate();
 #endif
 			// recv data from child and measure latency
-			clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
+// 			clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
 
-#ifdef SYM_SHORTCUT
-			retval = sc_recvfrom(fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
-#else
-#ifdef BYPASS
-			retval = bp_recvfrom(fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
-#else
-			retval = syscall(SYS_recvfrom, fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
-#endif
-#endif
-			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
+// #ifdef SYM_SHORTCUT
+// 			retval = sc_recvfrom(fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
+// #else
+// #ifdef BYPASS
+// 			retval = bp_recvfrom(fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
+// #else
+// 			// retval = syscall(SYS_recvfrom, fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
+// 			retval = 0;
+// #endif
+// #endif
+// 			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 
 #ifdef SYM_ELEVATE
       sym_lower();
