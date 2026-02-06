@@ -90,14 +90,16 @@ typedef ssize_t (*recvfrom_t)(int socket, void *restrict buffer, size_t length, 
 //---------------------------------------------------------------------
 
 #ifdef SYM_SHORTCUT
+extern unsigned long kallsyms_lookup_name(const char *name);
+
 typedef void (*void_fn_ptr)(unsigned long);
 void_fn_ptr get_fn_address(char *symbol){
-  struct kallsymlib_info *info;
+  unsigned long symbol_addr;
 
-  if (!kallsymlib_lookup(symbol, &info)) {
+  if (!(symbol_addr = kallsyms_lookup_name(symbol))) {
     fprintf(stderr, "%s : not found\n", symbol);
   }
-  return (void_fn_ptr) info->addr;
+  return (void_fn_ptr) symbol_addr;
 }
 
 mmap_t     sc_mmap;
@@ -110,6 +112,7 @@ recvfrom_t sc_recvfrom;
 select_t   sc_select;
 
 void init_sym_shortcuts(){
+	sym_elevate();
   sc_getppid   = (getppid_t)  get_fn_address("__x64_sys_getppid");
   printf("__x64_sys_getppid at %p\n", sc_getppid);
 
@@ -133,6 +136,7 @@ void init_sym_shortcuts(){
 
   sc_select = (select_t) get_fn_address("kern_select");
   printf("kern_select at %p\n", sc_select);
+  sym_lower();
 }
 #endif
 
@@ -608,8 +612,7 @@ void send_bench(int msg_size)
 #ifdef BYPASS
 			retval = bp_sendto(fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0);
 #else
-			// retval = syscall(SYS_sendto, fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0);
-			retval = 0;
+			retval = syscall(SYS_sendto, fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0);
 #endif
 #endif
 			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
@@ -731,6 +734,7 @@ void recv_bench(int msg_size)
 			// Write to pipe 1 to let parent know we are listening
 			write(fds1[1], &w, 1);
 
+			
 			// wait for connection
 			int fd_connect = accept(fd_server, (struct sockaddr *)0,
 									(socklen_t *)0);
@@ -747,19 +751,19 @@ void recv_bench(int msg_size)
       sym_elevate();
 #endif
 			// recv data from child and measure latency
-// 			clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
+			clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
 
-// #ifdef SYM_SHORTCUT
-// 			retval = sc_recvfrom(fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
-// #else
-// #ifdef BYPASS
-// 			retval = bp_recvfrom(fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
-// #else
-// 			// retval = syscall(SYS_recvfrom, fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
-// 			retval = 0;
-// #endif
-// #endif
-// 			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
+#ifdef SYM_SHORTCUT
+			retval = sc_recvfrom(fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
+#else
+#ifdef BYPASS
+			retval = bp_recvfrom(fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
+#else
+			retval = syscall(SYS_recvfrom, fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
+			// retval = 0;
+#endif
+#endif
+			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 
 #ifdef SYM_ELEVATE
       sym_lower();
