@@ -5,3 +5,4 @@ UKL.a
 new_lebench
 *.so
 *.csv
+.kersyms.txt
