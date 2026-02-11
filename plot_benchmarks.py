@@ -10,17 +10,19 @@ from pathlib import Path
 
 # Configuration
 RESULTS_DIR = Path("results")
-VERSIONS = ["elevate_sc", "elevate_no_sc", "no_elevate"]
+VERSIONS = ["elevate_sc_dyn", "elevate_sc_static", "elevate_no_sc", "no_elevate"]
 BENCHMARKS = ["clock", "cpu", "getppid", "read", "recv", "send", "write"]
 VERSION_LABELS = {
-    "elevate_sc": "Elevate + SC",
+    "elevate_sc_dyn": "Elevate SC Dynamic",
+    "elevate_sc_static": "Elevate SC Static",
     "elevate_no_sc": "Elevate No SC",
     "no_elevate": "No Elevate"
 }
 COLORS = {
-    "elevate_sc": "#2E86AB",      # Blue
-    "elevate_no_sc": "#A23B72",   # Purple
-    "no_elevate": "#F18F01"       # Orange
+    "elevate_sc_dyn": "#2E86AB",      # Blue
+    "elevate_sc_static": "#009688",   # Teal
+    "elevate_no_sc": "#A23B72",       # Purple
+    "no_elevate": "#F18F01"           # Orange
 }
 
 def load_benchmark_data(version, benchmark):
@@ -103,11 +105,14 @@ def plot_all_benchmarks(save_dir="plots", show=False):
     print(f"All plots saved to '{save_dir}/' directory")
 
 def create_summary_grid(save_dir="plots"):
-    """Create a summary figure with all benchmarks in a grid."""
-    fig, axes = plt.subplots(3, 3, figsize=(18, 14))
+    """Create a summary figure with I/O benchmarks in a grid."""
+    # Only include I/O benchmarks in the summary
+    summary_benchmarks = ["read", "recv", "send", "write"]
+    
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     axes = axes.flatten()
     
-    for idx, benchmark in enumerate(BENCHMARKS):
+    for idx, benchmark in enumerate(summary_benchmarks):
         ax = axes[idx]
         
         # Plot each version
@@ -145,11 +150,7 @@ def create_summary_grid(save_dir="plots"):
         if idx == 0:  # Only show legend on first plot
             ax.legend(loc='best', fontsize=8)
     
-    # Hide extra subplots
-    for idx in range(len(BENCHMARKS), len(axes)):
-        axes[idx].set_visible(False)
-    
-    plt.suptitle('Benchmark Comparison - All Tests', 
+    plt.suptitle('I/O Benchmark Comparison', 
                 fontsize=16, fontweight='bold', y=0.995)
     plt.tight_layout()
     

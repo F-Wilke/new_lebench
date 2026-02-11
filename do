@@ -11,6 +11,10 @@ if [ "$1" == "-sc" ]; then
     PROG_NAME="./sym_sc"
 fi
 
+if [ "$1" == "-sc-stat" ]; then
+    PROG_NAME="./sym_lebench_static"
+fi
+
 COMMAND="sudo LD_BIND_NOW=1 LD_LIBRARY_PATH=$LD_LIBRARY_PATH $PROG_NAME"
 # COMMAND="sudo LD_DEBUG=all LD_BIND_NOW=1 LD_LIBRARY_PATH=$LD_LIBRARY_PATH $PROG_NAME"
 

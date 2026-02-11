@@ -52,6 +52,7 @@ struct Record
 	struct timespec end;
 };
 
+
 //---------------------------------------------------------------------
 #ifdef USE_VMALLOC
 extern void *vmalloc(unsigned long size);
@@ -71,16 +72,16 @@ extern ssize_t bp_sendto(int socket, const void *message, size_t length, int fla
 extern ssize_t bp_recvfrom(int socket, void *restrict buffer, size_t length, int flags, struct sockaddr *restrict address, socklen_t *restrict address_len);
 #endif
 //---------------------------------------------------------------------
-#ifdef SYM_SHORTCUT
-typedef ssize_t (*write_t)(int fd, const void *buf, size_t count);
-typedef ssize_t (*read_t)(int fd, void *buf, size_t count);
-typedef void *(*mmap_t)(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
-typedef void (*munmap_t)(void *addr, size_t length);
-typedef int (*select_t)(int nfds, fd_set *restrict readfds, fd_set *restrict writefds, fd_set *restrict exceptfds, struct timeval *restrict timeout);
-typedef pid_t (*getppid_t)(void);
-typedef ssize_t (*sendto_t)(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
-typedef ssize_t (*recvfrom_t)(int socket, void *restrict buffer, size_t length, int flags, struct sockaddr *restrict address, socklen_t *restrict address_len);
-#endif
+// #ifdef SYM_SHORTCUT
+// typedef ssize_t (*write_t)(int fd, const void *buf, size_t count);
+// typedef ssize_t (*read_t)(int fd, void *buf, size_t count);
+// typedef void *(*mmap_t)(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
+// typedef void (*munmap_t)(void *addr, size_t length);
+// typedef int (*select_t)(int nfds, fd_set *restrict readfds, fd_set *restrict writefds, fd_set *restrict exceptfds, struct timeval *restrict timeout);
+// typedef pid_t (*getppid_t)(void);
+// typedef ssize_t (*sendto_t)(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
+// typedef ssize_t (*recvfrom_t)(int socket, void *restrict buffer, size_t length, int flags, struct sockaddr *restrict address, socklen_t *restrict address_len);
+// #endif
 //---------------------------------------------------------------------
 #ifdef DEBUG
 #define DEBUG 1
@@ -89,55 +90,60 @@ typedef ssize_t (*recvfrom_t)(int socket, void *restrict buffer, size_t length, 
 #endif
 //---------------------------------------------------------------------
 
+
+
 #ifdef SYM_SHORTCUT
-extern unsigned long kallsyms_lookup_name(const char *name);
+// extern unsigned long kallsyms_lookup_name(const char *name);
 
-typedef void (*void_fn_ptr)(unsigned long);
-void_fn_ptr get_fn_address(char *symbol){
-  unsigned long symbol_addr;
+// typedef void (*void_fn_ptr)(unsigned long);
+// void_fn_ptr get_fn_address(char *symbol){
+//   unsigned long symbol_addr;
 
-  if (!(symbol_addr = kallsyms_lookup_name(symbol))) {
-    fprintf(stderr, "%s : not found\n", symbol);
-  }
-  return (void_fn_ptr) symbol_addr;
-}
+//   if (!(symbol_addr = kallsyms_lookup_name(symbol))) {
+//     fprintf(stderr, "%s : not found\n", symbol);
+//   }
+//   return (void_fn_ptr) symbol_addr;
+// }
 
-mmap_t     sc_mmap;
-munmap_t   sc_munmap;
-getppid_t  sc_getppid;
-write_t    sc_write;
-read_t     sc_read;
-sendto_t   sc_sendto;
-recvfrom_t sc_recvfrom;
-select_t   sc_select;
+// mmap_t     sc_mmap;
+// munmap_t   sc_munmap;
+// getppid_t  sc_getppid;
+// write_t    sc_write;
+// read_t     sc_read;
+// sendto_t   sc_sendto;
+// recvfrom_t sc_recvfrom;
+// select_t   sc_select;
 
-void init_sym_shortcuts(){
-	sym_elevate();
-  sc_getppid   = (getppid_t)  get_fn_address("__x64_sys_getppid");
-  printf("__x64_sys_getppid at %p\n", sc_getppid);
+// void init_sym_shortcuts(){
+// 	sym_elevate();
+//   sc_getppid   = (getppid_t)  get_fn_address("__x64_sys_getppid");
+//   printf("__x64_sys_getppid at %p\n", sc_getppid);
 
-  sc_write     = (write_t)    get_fn_address("ksys_write");
-  printf("ksys_write at %p\n", sc_write);
+//   sc_write     = (write_t)    get_fn_address("ksys_write");
+//   printf("ksys_write at %p\n", sc_write);
 
-  sc_read      = (read_t)     get_fn_address("ksys_read");
-  printf("ksys_read at %p\n", sc_read);
+//   sc_read      = (read_t)     get_fn_address("ksys_read");
+//   printf("ksys_read at %p\n", sc_read);
 
-  sc_sendto    = (sendto_t)   get_fn_address("__sys_sendto");
-  printf("__x64_sys_sendto at %p\n", sc_sendto);
+//   sc_sendto    = (sendto_t)   get_fn_address("__sys_sendto");
+//   printf("__x64_sys_sendto at %p\n", sc_sendto);
 
-  sc_recvfrom  = (recvfrom_t) get_fn_address("__sys_recvfrom");
-  printf("__x64_sys_recvfrom at %p\n", sc_recvfrom);
+//   sc_recvfrom  = (recvfrom_t) get_fn_address("__sys_recvfrom");
+//   printf("__x64_sys_recvfrom at %p\n", sc_recvfrom);
 
-  sc_mmap = (mmap_t) get_fn_address("ksys_mmap_pgoff");
-  printf("ksys_mmap_pgoff at %p\n", sc_mmap);
+//   sc_mmap = (mmap_t) get_fn_address("ksys_mmap_pgoff");
+//   printf("ksys_mmap_pgoff at %p\n", sc_mmap);
 
-  sc_munmap = (munmap_t) get_fn_address("__x64_sys_munmap");
-  printf("__x64_sys_munmap at %p\n", sc_munmap);
+//   sc_munmap = (munmap_t) get_fn_address("__x64_sys_munmap");
+//   printf("__x64_sys_munmap at %p\n", sc_munmap);
 
-  sc_select = (select_t) get_fn_address("kern_select");
-  printf("kern_select at %p\n", sc_select);
-  sym_lower();
-}
+//   sc_select = (select_t) get_fn_address("kern_select");
+//   printf("kern_select at %p\n", sc_select);
+//   sym_lower();
+// }
+
+#include "kernel.h"
+
 #endif
 
 
@@ -215,7 +221,7 @@ void getppid_bench(void)
 	{
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
 #ifdef SYM_SHORTCUT
-    sc_getppid();
+    __x64_sys_getppid();
 #else
 #ifdef BYPASS
 		bp_getppid();
@@ -357,7 +363,7 @@ void write_bench(int file_size)
 	{
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
 #ifdef SYM_SHORTCUT
-    sc_write(fd, buf, file_size);
+    ksys_write(fd, buf, file_size);
 #else
 #ifdef BYPASS
 		bp_write(fd, buf, file_size);
@@ -434,7 +440,7 @@ void read_bench(int file_size)
 	{
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
 #ifdef SYM_SHORTCUT
-		sc_read(fd, buf, file_size);
+		ksys_read(fd, buf, file_size);
 #else
 #ifdef BYPASS
 		bp_read(fd, buf, file_size);
@@ -607,7 +613,7 @@ void send_bench(int msg_size)
 			// send buffer over to child and measure latency
 			clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
 #ifdef SYM_SHORTCUT
-        retval = sc_sendto(fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0);
+        retval = __sys_sendto(fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0);
 #else
 #ifdef BYPASS
 			retval = bp_sendto(fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0);
@@ -754,7 +760,7 @@ void recv_bench(int msg_size)
 			clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
 
 #ifdef SYM_SHORTCUT
-			retval = sc_recvfrom(fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
+			retval = __sys_recvfrom(fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
 #else
 #ifdef BYPASS
 			retval = bp_recvfrom(fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
@@ -1215,7 +1221,7 @@ static void select_bench(size_t fd_count, int iters)
 	{
 		clock_gettime(CLOCK_MONOTONIC, &runs[i].start);
 #ifdef SYM_SHORTCUT
-		sc_select(maxFd + 1, &rfds, NULL, NULL, &timeout);
+		__x64_sys_select(maxFd + 1, &rfds, NULL, NULL, &timeout);
 #else
 		syscall(SYS_select, maxFd + 1, &rfds, NULL, NULL, &timeout);
 #endif
@@ -1563,7 +1569,7 @@ static void mmap_bench(size_t file_size)
 		runs[i].size = file_size;
 		clock_gettime(CLOCK_MONOTONIC, &runs[i].start);
 #ifdef SYM_SHORTCUT
-		void *addr = (void *)sc_mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
+		void *addr = (void *)ksys_mmap_pgoff(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
 #else
 		void *addr = (void *)syscall(SYS_mmap, NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
 #endif
@@ -1614,7 +1620,7 @@ static void munmap_bench(size_t file_size)
 		}
 		clock_gettime(CLOCK_MONOTONIC, &runs[i].start);
 #ifdef SYM_SHORTCUT
-		sc_munmap(addr, file_size);
+		__x64_sys_munmap(addr, file_size);
 #else
 		syscall(SYS_munmap, addr, file_size);
 #endif
@@ -1663,11 +1669,11 @@ int main(void)
 	remove("test_file.txt");
 	remove("tmp_file.txt");
 
-#ifdef SYM_SHORTCUT
-  // initializes kallsym lib
-  sym_lib_init();
-  init_sym_shortcuts();
-#endif
+// #ifdef SYM_SHORTCUT
+//   // initializes kallsym lib
+//   sym_lib_init();
+//   init_sym_shortcuts();
+// #endif
 
 #ifdef BYPASS
 	// set_bypass_limit(50);
@@ -2005,3 +2011,4 @@ int main(void)
 	fclose(fp);
 #endif
 }
+
