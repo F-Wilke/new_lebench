@@ -34,7 +34,7 @@
 #define MAX_SIZE 8192
 #define PF_MAX_SIZE 100 * 4096
 /* #define LOOP 1000 */
-#define LOOP 100
+#define LOOP 1000
 #define STEP 256
 #define PF_STEP 4096
 #define CENT ((MAX_SIZE / STEP) / 100)
@@ -51,6 +51,21 @@ struct Record
 	struct timespec start;
 	struct timespec end;
 };
+char* dummy_data;
+
+extern void symbi_lower(void* regs, void* sreg);
+extern void symbi_query(void* regs);
+
+static inline void GET_GSBASE(unsigned long *gsbase)
+{
+	asm volatile("rdgsbase %0" : "=r"(*gsbase));
+}
+
+static inline void my_lower() {	  
+	symbi_lower((void*)dummy_data, (void*)dummy_data);
+	sym_iret();
+}
+
 
 
 //---------------------------------------------------------------------
@@ -139,7 +154,7 @@ extern ssize_t bp_recvfrom(int socket, void *restrict buffer, size_t length, int
 
 //   sc_select = (select_t) get_fn_address("kern_select");
 //   printf("kern_select at %p\n", sc_select);
-//   sym_lower();
+//   my_lower();
 // }
 
 #include "kernel.h"
@@ -232,7 +247,7 @@ void getppid_bench(void)
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 	}
 #ifdef SYM_ELEVATE
-  sym_lower();
+  my_lower();
 #endif
 
 	for (l = 0; l < loop; l++)
@@ -266,7 +281,7 @@ void clock_bench(void)
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 	}
 #ifdef SYM_ELEVATE
-  sym_lower();
+  my_lower();
 #endif
 
 	for (l = 0; l < loop; l++)
@@ -309,7 +324,7 @@ void cpu_bench(void)
 		}
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 #ifdef SYM_ELEVATE
-    sym_lower();
+    my_lower();
 #endif
 	}
 
@@ -375,7 +390,7 @@ void write_bench(int file_size)
 	}
 
 #ifdef SYM_ELEVATE
-  sym_lower();
+  my_lower();
 #endif
 	close(fd);
 
@@ -406,6 +421,11 @@ void read_bench(int file_size)
 	char *buf;
 	int fd, l, i;
 	struct Record *runs;
+
+#if DEBUG
+	bool printed_cr3 = false;
+#endif
+
 
 #if defined(USE_VMALLOC)
 	buf = (char *)vmalloc(sizeof(char) * file_size);
@@ -451,7 +471,7 @@ void read_bench(int file_size)
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 	}
 #ifdef SYM_ELEVATE
-  sym_lower();
+  my_lower();
 #endif
 
 	close(fd);
@@ -489,6 +509,9 @@ void send_bench(int msg_size)
 	char *buf;
 	struct sockaddr_un server_addr;
 	struct Record *runs;
+	#if DEBUG
+	bool printed_cr3 = false;
+	#endif
 
 	memset(&server_addr, 0, sizeof(struct sockaddr_un));
 	server_addr.sun_family = AF_UNIX;
@@ -535,7 +558,7 @@ void send_bench(int msg_size)
 		}
 		if (forkId == 0)
 		{
-			if (DEBUG)
+			if (DEBUG) 
 				printf("In child process.\n");
 
 			close(fds1[0]); // close the read end of pipe 1
@@ -623,7 +646,7 @@ void send_bench(int msg_size)
 #endif
 			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 #ifdef SYM_ELEVATE
-      sym_lower();
+      my_lower();
 #endif
 
 			if (retval == -1)
@@ -772,7 +795,7 @@ void recv_bench(int msg_size)
 			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 
 #ifdef SYM_ELEVATE
-      sym_lower();
+      my_lower();
 #endif
 
 
@@ -897,7 +920,7 @@ void fork_bench(void)
 		{
 			clock_gettime(CLOCK_MONOTONIC, &forkTime[l]);
 #ifdef SYM_ELEVATE
-      sym_lower();
+      my_lower();
 #endif
 			exit(0);
 		}
@@ -905,7 +928,7 @@ void fork_bench(void)
 		{
 			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 #ifdef SYM_ELEVATE
-      sym_lower();
+      my_lower();
 #endif
 			wait(&status);
 		}
@@ -980,7 +1003,7 @@ void thread_bench(void)
 		pthread_join(newThrd, NULL);
 	}
 #ifdef SYM_ELEVATE
-  sym_lower();
+  my_lower();
 #endif
 
 	for (l = 0; l < LOOP; l++)
@@ -1043,7 +1066,7 @@ void pagefault_bench(int file_size)
 
 	}
 #ifdef SYM_ELEVATE
-      sym_lower();
+      my_lower();
 #endif
 
 
@@ -1100,7 +1123,7 @@ void stack_pagefault_bench(int file_size)
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 	}
 #ifdef SYM_ELEVATE
-  sym_lower();
+  my_lower();
 #endif
 
 	for (l = 0; l < LOOP; l++)
@@ -1228,7 +1251,7 @@ static void select_bench(size_t fd_count, int iters)
 		clock_gettime(CLOCK_MONOTONIC, &runs[i].end);
 	}
 #ifdef SYM_ELEVATE
-  sym_lower();
+  my_lower();
 #endif
 
 
@@ -1322,7 +1345,7 @@ static void poll_bench(size_t fd_count, int iters)
 	}
 
 #ifdef SYM_ELEVATE
-	sym_lower();
+	my_lower();
 #endif
 
 	for (int i = 0; i < iters; i++)
@@ -1413,7 +1436,7 @@ static void epoll_bench(size_t fd_count, int iters)
 	}
 
 #ifdef SYM_ELEVATE
-      sym_lower();
+      my_lower();
 #endif
 
 	for (int i = 0; i < iters; i++)
@@ -1486,7 +1509,7 @@ static void context_switch_bench(void)
 			clock_gettime(CLOCK_MONOTONIC, &runs[i].end);
 		}
 #ifdef SYM_ELEVATE
-    sym_lower();
+    my_lower();
 #endif
 
 		int status;
@@ -1579,7 +1602,7 @@ static void mmap_bench(size_t file_size)
 	}
 
 #ifdef SYM_ELEVATE
-      sym_lower();
+      my_lower();
 #endif
 
 	close(fd);
@@ -1628,7 +1651,7 @@ static void munmap_bench(size_t file_size)
 	}
 
 #ifdef SYM_ELEVATE
-      sym_lower();
+      my_lower();
 #endif
 
 	close(fd);
@@ -1654,6 +1677,28 @@ int main(void)
 {
 	int file_size, pf_size, retval;
 	int i = 0, percentage = 0;
+
+	dummy_data = malloc(0x1000);
+	dummy_data[0] = 0x18; //touch this for safety
+
+	sym_elevate();
+	symbi_query((void*)dummy_data);
+	
+	for (i=0; i<0x1000; i++)
+	switch (dummy_data[i]) {
+		case 0x18:
+		dummy_data[i] = 0x2b;
+		break;
+        case 0x10:
+		dummy_data[i] = 0x33;
+		break;
+		default:
+		break;
+	}
+	
+	my_lower();
+	
+	 i = 0;
 
 	cpu_set_t set;
 	CPU_ZERO(&set);
