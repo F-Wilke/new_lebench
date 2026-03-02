@@ -1,0 +1,60 @@
+#include <asm/desc.h>
+#include <asm/idtentry.h>
+#include "idtadaptor.h"
+
+#include <linux/smp.h> //for on_each_cpu
+#include <asm/asm-offsets.h> // for IDT_ENTRIES
+
+
+
+gate_desc *orig_idt    = NULL;
+gate_desc *current_idt = NULL;
+
+gate_desc * idt_adaptor_clone(void) {
+  struct page *p = alloc_pages(GFP_KERNEL, 0);
+  if (p==NULL) {
+    WARN_ON(p==NULL);
+    return NULL;
+  }
+  gate_desc *new_idt = page_address(p);
+  gate_desc *src_idt;
+  
+  // seed new idt with current idt or orig_idt
+  if (current_idt) {
+    src_idt = current_idt;
+  } else {
+    struct desc_ptr idtr;
+    store_idt(&idtr);
+    orig_idt = (orig_idt == NULL) ? (gate_desc *)idtr.address : orig_idt;
+    src_idt  = orig_idt;
+  }
+  memcpy(new_idt, src_idt, IDT_ENTRIES * sizeof(gate_desc));
+  return new_idt;
+}
+
+//on_each_cpu callback to load idt on each cpu. 
+//load_idt is a macro that cannot be passed to on_each_cpu
+void load_idt_wrapper(void* dtr) {
+  load_idt((struct desc_ptr *)dtr);
+}
+
+void idt_adaptor_activate(const gate_desc *idt) {
+  struct desc_ptr idtr = {
+    .size	= (IDT_ENTRIES * sizeof(gate_desc)) - 1,
+    .address	= (unsigned long)idt
+  };
+    
+  // load_idt_wrapper(&idtr);
+  on_each_cpu(load_idt_wrapper, &idtr, 1); // 1 means wait for completion of all CPUs before returning
+
+  // make it current
+  if (current_idt) {
+    free_pages((unsigned long)current_idt, 0);
+  }
+  // cache pointer as current
+  current_idt = (gate_desc *)idt;
+}
+
+void idt_adaptor_release(const gate_desc *idt) {
+  free_pages((unsigned long)idt, 0);
+}

@@ -34,6 +34,8 @@ new_lebench:
 	objcopy --redefine-syms=../redef_sym_names UKL.a
 	cp UKL.a ../
 
+TARGETS := new_lebench sym_lebench sym_lebench_static sym_elevate sym_no_elevate sym_sc
+
 SYM_SHORTCUT=-DSYM_SHORTCUT
 SYM_TESTS=-DREF_TEST -DREAD_TEST -DWRITE_TEST -DSEND_TEST -DRECV_TEST 
 # SYM_TESTS=-DREF_TEST -DREAD_TEST -DWRITE_TEST 
@@ -47,8 +49,10 @@ SYM_CONFIG_NO_ELEVATE=-UUSE_VMALLOC -UBYPASS -DUSE_MALLOC
 SYM_DEBUG=-DDEBUG
 SYM_SYS_LIBS=-pthread
 SYMBI=../Symlib/build/libsym.a -I ../Symlib/include
-LKS=-lc -L. -lkallsyms #make link order explicit
+LKS=-lc -L. -lkallsyms  #make link order explicit
 SYM_STATIC = -DSYM_STATIC
+LIB_K_EXT=-L. -lextension
+
 
 SYM_CC_DEBUG=-g
 C_FLAGS=-mno-red-zone
@@ -65,27 +69,35 @@ libkallsyms.a: .kersyms.txt
 libkallsyms.so:
 	cp /proc/libkallsyms.so ./
 
+
+libextension.a ext.kbin: $(wildcard *.kc *.kh)
+	../examples/tools/kcc
+
+clean:
+	rm -rf $(wildcard $(TARGETS) *.o *.so *.a ext.kbin .ext)
+
+
 # lazy
 sym: sym_lebench
 
-sym_lebench: new_lebench.c libkallsyms.so
-	gcc $< -o new_lebench $(C_FLAGS) $(SYM_SYS_LIBS) $(SYM_CONFIG) $(SYM_TESTS) $(SYM_DEBUG) $(SYMBI) $(LKS) $(SYM_CC_DEBUG)
+sym_lebench: new_lebench.c libkallsyms.so libextension.a
+	gcc $< -o new_lebench $(C_FLAGS) $(SYM_SYS_LIBS) $(SYM_CONFIG) $(SYM_TESTS) $(SYM_DEBUG) $(SYMBI) $(LKS) $(LIB_K_EXT) $(SYM_CC_DEBUG)
 
 
 sym_no_elevate: new_lebench.c
 	gcc $< -o $@ $(C_FLAGS) $(SYM_SYS_LIBS) $(SYM_CONFIG_NO_ELEVATE) $(SYM_TESTS) $(SYM_DEBUG)
 
-sym_elevate: sym_elevate.o libkallsyms.so
-	gcc $< -o $@ $(C_FLAGS) $(SYM_SYS_LIBS) $(SYM_CONFIG) $(SYM_TESTS) $(SYM_DEBUG) $(SYMBI) $(LKS) $(SYM_CC_DEBUG)
+sym_elevate: sym_elevate.o libkallsyms.so libextension.a
+	gcc $< -o $@ $(C_FLAGS) $(SYM_SYS_LIBS) $(SYM_CONFIG) $(SYM_TESTS) $(SYM_DEBUG) $(SYMBI) $(LKS) $(LIB_K_EXT) $(SYM_CC_DEBUG)
 
 sym_elevate.o: new_lebench.c 
 	gcc -c $< -o $@ $(C_FLAGS) $(SYM_SYS_LIBS) $(SYM_CONFIG) $(SYM_TESTS) $(SYM_DEBUG) $(SYMBI) $(SYM_CC_DEBUG)
 
-sym_sc: new_lebench.c libkallsyms.so
-	gcc $< -o $@ $(C_FLAGS) $(SYM_SHORTCUT) $(SYM_SYS_LIBS) $(SYM_CONFIG) $(SYM_TESTS) $(SYM_DEBUG) $(SYMBI) $(LKS) $(SYM_CC_DEBUG)
+sym_sc: new_lebench.c libkallsyms.so libextension.a
+	gcc $< -o $@ $(C_FLAGS) $(SYM_SHORTCUT) $(SYM_SYS_LIBS) $(SYM_CONFIG) $(SYM_TESTS) $(SYM_DEBUG) $(SYMBI) $(LKS) $(LIB_K_EXT) $(SYM_CC_DEBUG)
 
-sym_lebench_static: new_lebench.c libkallsyms.a
-	gcc $^ -o sym_lebench_static $(C_FLAGS) $(SYM_SHORTCUT) $(SYM_SYS_LIBS) $(SYM_CONFIG) $(SYM_TESTS) $(SYM_DEBUG) $(SYMBI) $(SYM_CC_DEBUG) $(SYM_STATIC) 
+sym_lebench_static: new_lebench.c libkallsyms.a libextension.a
+	gcc $^ -o sym_lebench_static $(C_FLAGS) $(SYM_SHORTCUT) $(SYM_SYS_LIBS) $(SYM_CONFIG) $(SYM_TESTS) $(SYM_DEBUG) $(SYMBI) $(SYM_CC_DEBUG) $(SYM_STATIC) $(LIB_K_EXT)
 
 sym_lebench_static.o: new_lebench.c 
 	gcc -c $^ -o $@ $(C_FLAGS) $(SYM_SHORTCUT) $(SYM_SYS_LIBS) $(SYM_CONFIG) $(SYM_TESTS) $(SYM_DEBUG) $(SYMBI) $(SYM_CC_DEBUG) $(SYM_STATIC) 

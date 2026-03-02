@@ -1,0 +1,7 @@
+#ifndef __GREETER_H__
+#define __GREETER_H__
+
+int current_pid(void);
+int kernel_add(int a, int b);
+
+#endif

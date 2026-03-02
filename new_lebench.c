@@ -28,12 +28,13 @@
 #ifdef SYM_ELEVATE
 
 #include "LINF/sym_all.h"
+#include "greeter.kh"
 
 #endif
 
 #define MAX_SIZE 8192
 #define PF_MAX_SIZE 100 * 4096
-#define LOOP 1000
+#define LOOP 100
 #define STEP 256
 #define PF_STEP 4096
 #define CENT ((MAX_SIZE / STEP) / 100)
@@ -1678,10 +1679,17 @@ int main(void)
 	int i = 0, percentage = 0;
 
 	#ifdef SYM_ELEVATE
+
+	
+	
 	dummy_data = malloc(0x1000);
 	dummy_data[0] = 0x18; //touch this for safety
-
+	
 	sym_elevate();
+
+	printf("Running with SYM_ELEVATE enabled, pid %d\n", current_pid());
+
+	//prepare data for my_lower
 	symbi_query((void*)dummy_data);
 	
 	for (i=0; i<0x1000; i++)

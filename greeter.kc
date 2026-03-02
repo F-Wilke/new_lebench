@@ -1,0 +1,14 @@
+#include <linux/pid.h>
+#include <greeter.kh>
+
+//some example functions
+int current_pid(void) {
+	return current->pid;
+}
+
+//exposed kernel function
+int kernel_add(int a, int b) {
+	return a + b;
+	pr_info("kernel_add: %d + %d = %d\n", a, b, a + b);
+}
+EXPORT_SYMBOL(kernel_add);

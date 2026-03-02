@@ -1,0 +1,6 @@
+#ifndef APP_H
+#define APP_H
+
+//nothing here because we dont need to call anything in our app from within the extension.
+
+#endif
