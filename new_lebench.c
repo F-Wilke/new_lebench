@@ -79,18 +79,7 @@ extern pid_t bp_getppid(void);
 extern ssize_t bp_sendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
 extern ssize_t bp_recvfrom(int socket, void *restrict buffer, size_t length, int flags, struct sockaddr *restrict address, socklen_t *restrict address_len);
 #endif
-//---------------------------------------------------------------------
-// #ifdef SYM_SHORTCUT
-// typedef ssize_t (*write_t)(int fd, const void *buf, size_t count);
-// typedef ssize_t (*read_t)(int fd, void *buf, size_t count);
-// typedef void *(*mmap_t)(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
-// typedef void (*munmap_t)(void *addr, size_t length);
-// typedef int (*select_t)(int nfds, fd_set *restrict readfds, fd_set *restrict writefds, fd_set *restrict exceptfds, struct timeval *restrict timeout);
-// typedef pid_t (*getppid_t)(void);
-// typedef ssize_t (*sendto_t)(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
-// typedef ssize_t (*recvfrom_t)(int socket, void *restrict buffer, size_t length, int flags, struct sockaddr *restrict address, socklen_t *restrict address_len);
-// #endif
-//---------------------------------------------------------------------
+
 #ifdef DEBUG
 #define DEBUG 1
 #else
@@ -99,59 +88,6 @@ extern ssize_t bp_recvfrom(int socket, void *restrict buffer, size_t length, int
 //---------------------------------------------------------------------
 
 
-
-#ifdef SYM_SHORTCUT
-// extern unsigned long kallsyms_lookup_name(const char *name);
-
-// typedef void (*void_fn_ptr)(unsigned long);
-// void_fn_ptr get_fn_address(char *symbol){
-//   unsigned long symbol_addr;
-
-//   if (!(symbol_addr = kallsyms_lookup_name(symbol))) {
-//     fprintf(stderr, "%s : not found\n", symbol);
-//   }
-//   return (void_fn_ptr) symbol_addr;
-// }
-
-// mmap_t     sc_mmap;
-// munmap_t   sc_munmap;
-// getppid_t  sc_getppid;
-// write_t    sc_write;
-// read_t     sc_read;
-// sendto_t   sc_sendto;
-// recvfrom_t sc_recvfrom;
-// select_t   sc_select;
-
-// void init_sym_shortcuts(){
-// 	sym_elevate();
-//   sc_getppid   = (getppid_t)  get_fn_address("__x64_sys_getppid");
-//   printf("__x64_sys_getppid at %p\n", sc_getppid);
-
-//   sc_write     = (write_t)    get_fn_address("ksys_write");
-//   printf("ksys_write at %p\n", sc_write);
-
-//   sc_read      = (read_t)     get_fn_address("ksys_read");
-//   printf("ksys_read at %p\n", sc_read);
-
-//   sc_sendto    = (sendto_t)   get_fn_address("__sys_sendto");
-//   printf("__x64_sys_sendto at %p\n", sc_sendto);
-
-//   sc_recvfrom  = (recvfrom_t) get_fn_address("__sys_recvfrom");
-//   printf("__x64_sys_recvfrom at %p\n", sc_recvfrom);
-
-//   sc_mmap = (mmap_t) get_fn_address("ksys_mmap_pgoff");
-//   printf("ksys_mmap_pgoff at %p\n", sc_mmap);
-
-//   sc_munmap = (munmap_t) get_fn_address("__x64_sys_munmap");
-//   printf("__x64_sys_munmap at %p\n", sc_munmap);
-
-//   sc_select = (select_t) get_fn_address("kern_select");
-//   printf("kern_select at %p\n", sc_select);
-//   my_lower();
-// }
-
-
-#endif
 
 #ifdef SYM_ELEVATE
 #include "kernel.h"
