@@ -3,6 +3,8 @@
 
 
 #ifdef SYM_STATIC
+void symbi_lower(void* regs, void* sreg);
+void symbi_query(void* regs);
 ssize_t ksys_write(int fd, const void *buf, size_t count);
 ssize_t ksys_read(int fd, void *buf, size_t count);
 void *ksys_mmap_pgoff(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
@@ -14,7 +16,8 @@ ssize_t __sys_recvfrom(int socket, void *restrict buffer, size_t length, int fla
 
 #else //assume dynamic
 
-
+extern void symbi_lower(void* regs, void* sreg);
+extern void symbi_query(void* regs);
 extern ssize_t ksys_write(int fd, const void *buf, size_t count);
 extern ssize_t ksys_read(int fd, void *buf, size_t count);
 extern void *ksys_mmap_pgoff(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
