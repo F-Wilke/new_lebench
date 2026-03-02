@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 
 # Configuration
-RESULTS_DIR = Path("results")
+RESULTS_DIR = Path("results/1000_virt")
 VERSIONS = ["elevate_sc_dyn", "elevate_sc_static", "elevate_no_sc", "no_elevate"]
 BENCHMARKS = ["clock", "cpu", "getppid", "read", "recv", "send", "write"]
 VERSION_LABELS = {

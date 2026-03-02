@@ -33,7 +33,6 @@
 
 #define MAX_SIZE 8192
 #define PF_MAX_SIZE 100 * 4096
-/* #define LOOP 1000 */
 #define LOOP 1000
 #define STEP 256
 #define PF_STEP 4096
@@ -53,17 +52,10 @@ struct Record
 };
 char* dummy_data;
 
-extern void symbi_lower(void* regs, void* sreg);
-extern void symbi_query(void* regs);
 
 static inline void GET_GSBASE(unsigned long *gsbase)
 {
 	asm volatile("rdgsbase %0" : "=r"(*gsbase));
-}
-
-static inline void my_lower() {	  
-	symbi_lower((void*)dummy_data, (void*)dummy_data);
-	sym_iret();
 }
 
 
@@ -157,10 +149,17 @@ extern ssize_t bp_recvfrom(int socket, void *restrict buffer, size_t length, int
 //   my_lower();
 // }
 
-#include "kernel.h"
 
 #endif
 
+#ifdef SYM_ELEVATE
+#include "kernel.h"
+
+static inline void my_lower() {	  
+	symbi_lower((void*)dummy_data, (void*)dummy_data);
+	sym_iret();
+}
+#endif
 
 void calc_diff(struct timespec *diff, struct timespec *bigger, struct timespec *smaller)
 {
@@ -1678,6 +1677,7 @@ int main(void)
 	int file_size, pf_size, retval;
 	int i = 0, percentage = 0;
 
+	#ifdef SYM_ELEVATE
 	dummy_data = malloc(0x1000);
 	dummy_data[0] = 0x18; //touch this for safety
 
@@ -1697,8 +1697,10 @@ int main(void)
 	}
 	
 	my_lower();
+	i = 0;
 	
-	 i = 0;
+	#endif
+	
 
 	cpu_set_t set;
 	CPU_ZERO(&set);
