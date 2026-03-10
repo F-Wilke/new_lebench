@@ -29,6 +29,7 @@
 
 #include "LINF/sym_all.h"
 #include "greeter.kh"
+#include "kernel.h"
 
 #endif
 
@@ -87,16 +88,6 @@ extern ssize_t bp_recvfrom(int socket, void *restrict buffer, size_t length, int
 #endif
 //---------------------------------------------------------------------
 
-
-
-#ifdef SYM_ELEVATE
-#include "kernel.h"
-
-static inline void my_lower() {	  
-	symbi_lower((void*)dummy_data, (void*)dummy_data);
-	sym_iret();
-}
-#endif
 
 void calc_diff(struct timespec *diff, struct timespec *bigger, struct timespec *smaller)
 {
@@ -183,7 +174,7 @@ void getppid_bench(void)
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 	}
 #ifdef SYM_ELEVATE
-  my_lower();
+  symbi_fast_lower();
 #endif
 
 	for (l = 0; l < loop; l++)
@@ -217,7 +208,7 @@ void clock_bench(void)
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 	}
 #ifdef SYM_ELEVATE
-  my_lower();
+  symbi_fast_lower();
 #endif
 
 	for (l = 0; l < loop; l++)
@@ -260,7 +251,7 @@ void cpu_bench(void)
 		}
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 #ifdef SYM_ELEVATE
-    my_lower();
+    symbi_fast_lower();
 #endif
 	}
 
@@ -326,7 +317,7 @@ void write_bench(int file_size)
 	}
 
 #ifdef SYM_ELEVATE
-  my_lower();
+  symbi_fast_lower();
 #endif
 	close(fd);
 
@@ -407,7 +398,7 @@ void read_bench(int file_size)
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 	}
 #ifdef SYM_ELEVATE
-  my_lower();
+  symbi_fast_lower();
 #endif
 
 	close(fd);
@@ -582,7 +573,7 @@ void send_bench(int msg_size)
 #endif
 			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 #ifdef SYM_ELEVATE
-      my_lower();
+      symbi_fast_lower();
 #endif
 
 			if (retval == -1)
@@ -731,7 +722,7 @@ void recv_bench(int msg_size)
 			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 
 #ifdef SYM_ELEVATE
-      my_lower();
+      symbi_fast_lower();
 #endif
 
 
@@ -856,7 +847,7 @@ void fork_bench(void)
 		{
 			clock_gettime(CLOCK_MONOTONIC, &forkTime[l]);
 #ifdef SYM_ELEVATE
-      my_lower();
+      symbi_fast_lower();
 #endif
 			exit(0);
 		}
@@ -864,7 +855,7 @@ void fork_bench(void)
 		{
 			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 #ifdef SYM_ELEVATE
-      my_lower();
+      symbi_fast_lower();
 #endif
 			wait(&status);
 		}
@@ -939,7 +930,7 @@ void thread_bench(void)
 		pthread_join(newThrd, NULL);
 	}
 #ifdef SYM_ELEVATE
-  my_lower();
+  symbi_fast_lower();
 #endif
 
 	for (l = 0; l < LOOP; l++)
@@ -1002,7 +993,7 @@ void pagefault_bench(int file_size)
 
 	}
 #ifdef SYM_ELEVATE
-      my_lower();
+      symbi_fast_lower();
 #endif
 
 
@@ -1059,7 +1050,7 @@ void stack_pagefault_bench(int file_size)
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 	}
 #ifdef SYM_ELEVATE
-  my_lower();
+  symbi_fast_lower();
 #endif
 
 	for (l = 0; l < LOOP; l++)
@@ -1187,7 +1178,7 @@ static void select_bench(size_t fd_count, int iters)
 		clock_gettime(CLOCK_MONOTONIC, &runs[i].end);
 	}
 #ifdef SYM_ELEVATE
-  my_lower();
+  symbi_fast_lower();
 #endif
 
 
@@ -1281,7 +1272,7 @@ static void poll_bench(size_t fd_count, int iters)
 	}
 
 #ifdef SYM_ELEVATE
-	my_lower();
+	symbi_fast_lower();
 #endif
 
 	for (int i = 0; i < iters; i++)
@@ -1372,7 +1363,7 @@ static void epoll_bench(size_t fd_count, int iters)
 	}
 
 #ifdef SYM_ELEVATE
-      my_lower();
+      symbi_fast_lower();
 #endif
 
 	for (int i = 0; i < iters; i++)
@@ -1445,7 +1436,7 @@ static void context_switch_bench(void)
 			clock_gettime(CLOCK_MONOTONIC, &runs[i].end);
 		}
 #ifdef SYM_ELEVATE
-    my_lower();
+    symbi_fast_lower();
 #endif
 
 		int status;
@@ -1538,7 +1529,7 @@ static void mmap_bench(size_t file_size)
 	}
 
 #ifdef SYM_ELEVATE
-      my_lower();
+      symbi_fast_lower();
 #endif
 
 	close(fd);
@@ -1587,7 +1578,7 @@ static void munmap_bench(size_t file_size)
 	}
 
 #ifdef SYM_ELEVATE
-      my_lower();
+      symbi_fast_lower();
 #endif
 
 	close(fd);
@@ -1625,7 +1616,7 @@ int main(void)
 
 	printf("Running with SYM_ELEVATE enabled, pid %d\n", current_pid());
 
-	//prepare data for my_lower
+	//prepare data for symbi_fast_lower
 	symbi_query((void*)dummy_data);
 	
 	for (i=0; i<0x1000; i++)
@@ -1640,7 +1631,7 @@ int main(void)
 		break;
 	}
 	
-	my_lower();
+	symbi_fast_lower();
 	i = 0;
 	
 	#endif

@@ -13,6 +13,7 @@ int __x64_sys_select(int nfds, fd_set *restrict readfds, fd_set *restrict writef
 pid_t __x64_sys_getppid(void);
 ssize_t __sys_sendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
 ssize_t __sys_recvfrom(int socket, void *restrict buffer, size_t length, int flags, struct sockaddr *restrict address, socklen_t *restrict address_len);
+void symbi_fast_lower(void);
 
 #else //assume dynamic
 
@@ -26,6 +27,7 @@ extern int __x64_sys_select(int nfds, fd_set *restrict readfds, fd_set *restrict
 extern pid_t __x64_sys_getppid(void);
 extern ssize_t __sys_sendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
 extern ssize_t __sys_recvfrom(int socket, void *restrict buffer, size_t length, int flags, struct sockaddr *restrict address, socklen_t *restrict address_len);
+extern void symbi_fast_lower(void);
 
 #endif
 
