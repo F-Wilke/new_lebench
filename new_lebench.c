@@ -31,6 +31,43 @@
 #include "greeter.kh"
 #include "kernel.h"
 
+#ifdef BRACKET_PRIV
+#ifdef CONSTANT_PRIV
+#error "Cannot request both bracket and constant privilege"
+#endif
+#endif
+
+#ifdef BRACKET_STACK
+#ifdef CONSTANT_STACK
+#error "Cannot request both bracket and constant stacks"
+#endif
+#endif
+
+#endif
+
+#ifdef BRACKET_STACK
+#include <dlfcn.h>
+unsigned long kcut_ktos = 0;
+static inline int resolve_sym(char *name, void **value)
+{
+	char *error;
+	dlerror();
+	*value = dlsym(RTLD_DEFAULT, name);
+	error = dlerror();
+	if (error != NULL) {
+		fprintf(stderr, "%s\n", error);
+		return 0;
+	}
+	return 1;
+}
+
+static inline void set_kcut_ktos(void)
+{
+	if (!resolve_sym("cpu_current_top_of_stack", (void **)&kcut_ktos)) {
+		printf("failed to resolve cpu_current_top_of_stack\n");
+		assert(0);
+	}
+}
 #endif
 
 #define MAX_SIZE 8192
@@ -59,35 +96,6 @@ static inline void GET_GSBASE(unsigned long *gsbase)
 {
 	asm volatile("rdgsbase %0" : "=r"(*gsbase));
 }
-
-
-
-//---------------------------------------------------------------------
-#ifdef USE_VMALLOC
-extern void *vmalloc(unsigned long size);
-extern void vfree(const void *addr);
-#endif
-//---------------------------------------------------------------------
-#ifdef BYPASS
-extern ssize_t bp_write(int fd, const void *buf, size_t count);
-extern ssize_t bp_read(int fd, void *buf, size_t count);
-extern void *bp_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
-extern int bp_munmap(void *addr, size_t length);
-extern int bp_select(int nfds, fd_set *restrict readfds, fd_set *restrict writefds, fd_set *restrict exceptfds, struct timeval *restrict timeout);
-extern int bp_poll(struct pollfd *fds, nfds_t nfds, int timeout);
-extern int bp_epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout);
-extern pid_t bp_getppid(void);
-extern ssize_t bp_sendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len);
-extern ssize_t bp_recvfrom(int socket, void *restrict buffer, size_t length, int flags, struct sockaddr *restrict address, socklen_t *restrict address_len);
-#endif
-
-#ifdef DEBUG
-#define DEBUG 1
-#else
-#define DEBUG 0
-#endif
-//---------------------------------------------------------------------
-
 
 void calc_diff(struct timespec *diff, struct timespec *bigger, struct timespec *smaller)
 {
@@ -156,26 +164,38 @@ void getppid_bench(void)
 
 	memset(runs, 0, sizeof(struct Record) * loop);
 
-#ifdef SYM_ELEVATE
-  sym_elevate();
-#endif
 	for (l = 0; l < loop; l++)
 	{
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
+
+#ifdef BRACKET_PRIV
+		sym_elevate();
+#endif
+
 #ifdef SYM_SHORTCUT
-    __x64_sys_getppid();
+
+#ifdef BRACKET_STACK
+		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, __x64_sys_getppid());
 #else
-#ifdef BYPASS
-		bp_getppid();
+		__x64_sys_getppid();
+#endif
+
+#else
+
+#ifdef BRACKET_STACK
+		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, syscall(SYS_getppid));
 #else
 		syscall(SYS_getppid);
 #endif
+
 #endif
+
+#ifdef BRACKET_PRIV
+		symbi_fast_lower();
+#endif
+
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 	}
-#ifdef SYM_ELEVATE
-  symbi_fast_lower();
-#endif
 
 	for (l = 0; l < loop; l++)
 	{
@@ -199,17 +219,25 @@ void clock_bench(void)
 				MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
 	memset(runs, 0, sizeof(struct Record) * loop);
-#ifdef SYM_ELEVATE
-      sym_elevate();
-#endif
+
 	for (l = 0; l < loop; l++)
 	{
+#ifdef BRACKET_PRIV
+		sym_elevate();
+#endif
+
+#ifdef BRACKET_STACK
+		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, clock_gettime(CLOCK_MONOTONIC, &runs[l].start));
+		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, clock_gettime(CLOCK_MONOTONIC, &runs[l].end));
+#else
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
-	}
-#ifdef SYM_ELEVATE
-  symbi_fast_lower();
 #endif
+
+#ifdef BRACKET_PRIV
+		symbi_fast_lower();
+#endif
+	}
 
 	for (l = 0; l < loop; l++)
 	{
@@ -241,8 +269,8 @@ void cpu_bench(void)
 		start = 9903290.789798798;
 		div = 3232.32;
 
-#ifdef SYM_ELEVATE
-    sym_elevate();
+#ifdef BRACKET_PRIV
+		sym_elevate();
 #endif
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
 		for (i = 0; i < 500000; i++)
@@ -250,8 +278,8 @@ void cpu_bench(void)
 			start = start / div;
 		}
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
-#ifdef SYM_ELEVATE
-    symbi_fast_lower();
+#ifdef BRACKET_PRIV
+		symbi_fast_lower();
 #endif
 	}
 
@@ -273,10 +301,7 @@ void write_bench(int file_size)
 	int fd, i, l;
 	struct Record *runs;
 
-#if defined(USE_VMALLOC)
-	buf = (char *)vmalloc(sizeof(char) * file_size);
-	runs = (struct Record*)vmalloc(sizeof(struct Record) * LOOP * 10);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	buf = (char *)malloc(sizeof(char) * file_size);
 	runs = (struct Record*)malloc(sizeof(struct Record) * LOOP * 10);
 #else
@@ -304,21 +329,32 @@ void write_bench(int file_size)
 	for (l = 0; l < LOOP * 10; l++)
 	{
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
+
+#ifdef BRACKET_PRIV
+		sym_elevate();
+#endif
+
 #ifdef SYM_SHORTCUT
-    ksys_write(fd, buf, file_size);
+#ifdef BRACKET_STACK
+		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, ksys_write(fd, buf, file_size));
 #else
-#ifdef BYPASS
-		bp_write(fd, buf, file_size);
+		ksys_write(fd, buf, file_size);
+#endif
+#else
+#ifdef BRACKET_STACK
+		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, syscall(SYS_write, fd, buf, file_size));
 #else
 		syscall(SYS_write, fd, buf, file_size);
 #endif
 #endif
+
+#ifdef BRACKET_PRIV
+		symbi_fast_lower();
+#endif
+
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 	}
 
-#ifdef SYM_ELEVATE
-  symbi_fast_lower();
-#endif
 	close(fd);
 
 	for (l = 0; l < LOOP * 10; l++)
@@ -328,10 +364,7 @@ void write_bench(int file_size)
 	}
 	fflush(fp);
 
-#if defined(USE_VMALLOC)
-	vfree(buf);
-	vfree(runs);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	free(buf);
 	free(runs);
 #else
@@ -354,10 +387,7 @@ void read_bench(int file_size)
 #endif
 
 
-#if defined(USE_VMALLOC)
-	buf = (char *)vmalloc(sizeof(char) * file_size);
-	runs = (struct Record*)vmalloc(sizeof(struct Record) * LOOP * 10);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	buf = (char *)malloc(sizeof(char) * file_size);
 	runs = (struct Record*)malloc(sizeof(struct Record) * LOOP * 10);
 #else
@@ -379,27 +409,30 @@ void read_bench(int file_size)
 
 	memset(runs, 0, sizeof(struct Record) * LOOP * 10);
 
-#ifdef SYM_ELEVATE
-      sym_elevate();
-#endif
-
 	for (l = 0; l < LOOP * 10; l++)
 	{
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
+#ifdef BRACKET_PRIV
+		sym_elevate();
+#endif
 #ifdef SYM_SHORTCUT
-		ksys_read(fd, buf, file_size);
+#ifdef BRACKET_STACK
+		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, ksys_read(fd, buf, file_size));
 #else
-#ifdef BYPASS
-		bp_read(fd, buf, file_size);
+		ksys_read(fd, buf, file_size);
+#endif
+#else
+#ifdef BRACKET_STACK
+		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, syscall(SYS_read, fd, buf, file_size));
 #else
 		syscall(SYS_read, fd, buf, file_size);
 #endif
 #endif
+#ifdef BRACKET_PRIV
+		symbi_fast_lower();
+#endif
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 	}
-#ifdef SYM_ELEVATE
-  symbi_fast_lower();
-#endif
 
 	close(fd);
 
@@ -410,10 +443,7 @@ void read_bench(int file_size)
 	}
 	fflush(fp);
 
-#if defined(USE_VMALLOC)
-	vfree(buf);
-	vfree(runs);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	free(buf);
 	free(runs);
 #else
@@ -446,10 +476,7 @@ void send_bench(int msg_size)
 	strncpy(server_addr.sun_path, sock, sizeof(server_addr.sun_path) - 1);
 
 	// create a buffer (this needs to be mmap)
-#if defined(USE_VMALLOC)
-	buf = (char *)vmalloc(sizeof(char) * msg_size);
-	runs = (struct Record *)vmalloc(sizeof(struct Record) * LOOP);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	buf = (char *)malloc(sizeof(char) * msg_size);
 	runs = (struct Record *)malloc(sizeof(struct Record) * LOOP);
 #else
@@ -557,24 +584,30 @@ void send_bench(int msg_size)
 			// send the buffer over to child (for warm-up)
 			retval = send(fd_client, buf, msg_size, MSG_DONTWAIT);
 
-#ifdef SYM_ELEVATE
-      sym_elevate();
-#endif
 			// send buffer over to child and measure latency
 			clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
+#ifdef BRACKET_PRIV
+			sym_elevate();
+#endif
 #ifdef SYM_SHORTCUT
-        retval = __sys_sendto(fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0);
+#ifdef BRACKET_STACK
+			SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos,
+					retval = __sys_sendto(fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0));
 #else
-#ifdef BYPASS
-			retval = bp_sendto(fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0);
+			retval = __sys_sendto(fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0);
+#endif
+#else
+#ifdef BRACKET_STACK
+			SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos,
+					retval = syscall(SYS_sendto, fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0));
 #else
 			retval = syscall(SYS_sendto, fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0);
 #endif
 #endif
-			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
-#ifdef SYM_ELEVATE
-      symbi_fast_lower();
+#ifdef BRACKET_PRIV
+			symbi_fast_lower();
 #endif
+			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 
 			if (retval == -1)
 			{
@@ -600,10 +633,7 @@ void send_bench(int msg_size)
 	}
 	fflush(fp);
 
-#if defined(USE_VMALLOC)
-	vfree(buf);
-	vfree(runs);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	free(buf);
 	free(runs);
 #else
@@ -635,10 +665,7 @@ void recv_bench(int msg_size)
 	strncpy(server_addr.sun_path, sock, sizeof(server_addr.sun_path) - 1);
 
 	// create a buffer (this needs to be mmap)
-#if defined(USE_VMALLOC)
-	buf = (char *)vmalloc(sizeof(char) * msg_size);
-	runs = (struct Record *)vmalloc(sizeof(struct Record) * LOOP);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	buf = (char *)malloc(sizeof(char) * msg_size);
 	runs = (struct Record *)malloc(sizeof(struct Record) * LOOP);
 #else
@@ -703,28 +730,32 @@ void recv_bench(int msg_size)
 			// recv data from child (for warm-up)
 			retval = recv(fd_connect, buf, msg_size, MSG_DONTWAIT);
 
-#ifdef SYM_ELEVATE
-      sym_elevate();
-#endif
 			// recv data from child and measure latency
 			clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
 
+#ifdef BRACKET_PRIV
+			sym_elevate();
+#endif
+
 #ifdef SYM_SHORTCUT
-			retval = __sys_recvfrom(fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
+#ifdef BRACKET_STACK
+			SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos,
+					retval = __sys_recvfrom(fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL));
 #else
-#ifdef BYPASS
-			retval = bp_recvfrom(fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
+			retval = __sys_recvfrom(fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
+#endif
+#else
+#ifdef BRACKET_STACK
+			SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos,
+					retval = syscall(SYS_recvfrom, fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL));
 #else
 			retval = syscall(SYS_recvfrom, fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
-			// retval = 0;
 #endif
+#endif
+#ifdef BRACKET_PRIV
+			symbi_fast_lower();
 #endif
 			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
-
-#ifdef SYM_ELEVATE
-      symbi_fast_lower();
-#endif
-
 
 			if (retval == -1)
 			{
@@ -801,10 +832,7 @@ void recv_bench(int msg_size)
 	}
 	fflush(fp);
 
-#if defined(USE_VMALLOC)
-	vfree(buf);
-	vfree(runs);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	free(buf);
 	free(runs);
 #else
@@ -825,9 +853,7 @@ void fork_bench(void)
 	int forkId, l, status;
 	struct Record *runs;
 
-#if defined(USE_VMALLOC)
-	runs = (struct Record *)vmalloc(sizeof(struct Record) * LOOP);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	runs = (struct Record *)malloc(sizeof(struct Record) * LOOP);
 #else
 	runs = (struct Record *)mmap(NULL, sizeof(struct Record) * LOOP, PROT_READ | PROT_WRITE,
@@ -838,25 +864,29 @@ void fork_bench(void)
 	memset(forkTime, 0, sizeof(struct timespec) * LOOP);
 	for (l = 0; l < LOOP; l++)
 	{
-#ifdef SYM_ELEVATE
-    sym_elevate();
-#endif
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
+#ifdef BRACKET_PRIV
+		sym_elevate();
+#endif
+#ifdef BRACKET_STACK
+		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, forkId = fork());
+#else
 		forkId = fork();
+#endif
 		if (forkId == 0)
 		{
-			clock_gettime(CLOCK_MONOTONIC, &forkTime[l]);
-#ifdef SYM_ELEVATE
-      symbi_fast_lower();
+#ifdef BRACKET_PRIV
+			symbi_fast_lower();
 #endif
+			clock_gettime(CLOCK_MONOTONIC, &forkTime[l]);
 			exit(0);
 		}
 		else if (forkId > 0)
 		{
-			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
-#ifdef SYM_ELEVATE
-      symbi_fast_lower();
+#ifdef BRACKET_PRIV
+			symbi_fast_lower();
 #endif
+			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 			wait(&status);
 		}
 		else
@@ -876,9 +906,7 @@ void fork_bench(void)
 
 	munmap(forkTime, sizeof(struct timespec));
 
-#if defined(USE_VMALLOC)
-	vfree(runs);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	free(runs);
 #else
 	munmap(runs, sizeof(struct Record) * LOOP);
@@ -901,10 +929,7 @@ void thread_bench(void)
 	struct timespec *threads;
 	struct Record *runs;
 
-#if defined(USE_VMALLOC)
-	runs = (struct Record *)vmalloc(sizeof(struct Record) * LOOP);
-	threads = (struct timespec *)vmalloc(sizeof(struct timespec) * LOOP);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	runs = (struct Record *)malloc(sizeof(struct Record) * LOOP);
 	threads = (struct timespec *)malloc(sizeof(struct timespec) * LOOP);
 #else
@@ -917,21 +942,24 @@ void thread_bench(void)
 	memset(runs, 0, sizeof(struct Record) * LOOP);
 	memset(threads, 0, sizeof(struct timespec) * LOOP);
 
-#ifdef SYM_ELEVATE
-      sym_elevate();
-#endif
-
 	for (l = 0; l < LOOP; l++)
 	{
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
+#ifdef BRACKET_PRIV
+		sym_elevate();
+#endif
+#ifdef BRACKET_STACK
+		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, pthread_create(&newThrd, NULL, thrdfnc, &threads[l]));
+#else
 		pthread_create(&newThrd, NULL, thrdfnc, &threads[l]);
+#endif
+#ifdef BRACKET_PRIV
+		symbi_fast_lower();
+#endif
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 
 		pthread_join(newThrd, NULL);
 	}
-#ifdef SYM_ELEVATE
-  symbi_fast_lower();
-#endif
 
 	for (l = 0; l < LOOP; l++)
 	{
@@ -941,10 +969,7 @@ void thread_bench(void)
 	}
 	fflush(fp);
 
-#if defined(USE_VMALLOC)
-	vfree(runs);
-	vfree(threads);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	free(runs);
 	free(threads);
 #else
@@ -962,9 +987,7 @@ void pagefault_bench(int file_size)
 	int l, i;
 	char *addr;
 
-#if defined(USE_VMALLOC)
-	runs = (struct Record *)vmalloc(sizeof(struct Record) * LOOP);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	runs = (struct Record *)malloc(sizeof(struct Record) * LOOP);
 #else
 	runs = (struct Record *)mmap(NULL, sizeof(struct Record) * LOOP, PROT_READ | PROT_WRITE,
@@ -973,28 +996,33 @@ void pagefault_bench(int file_size)
 
 	memset(runs, 0, sizeof(struct Record) * LOOP);
 
- #ifdef SYM_ELEVATE
-      sym_elevate();
-#endif
 
 	for (l = 0; l < LOOP; l++)
 	{
 		addr = (char *)mmap((void *)ADDR_HINT, file_size, PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 		i = 0;
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
+
+#ifdef BRACKET_PRIV
+		sym_elevate();
+#endif
 		while (i < file_size)
 		{
+#ifdef BRACKET_STACK
+			SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, addr[i] = i % 93 + 33);
+#else
 			addr[i] = i % 93 + 33;
+#endif
 			i = i + 4096;
 		}
+#ifdef BRACKET_PRIV
+		symbi_fast_lower();
+#endif
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 
 		munmap(addr, file_size);
 
 	}
-#ifdef SYM_ELEVATE
-      symbi_fast_lower();
-#endif
 
 
 	for (l = 0; l < LOOP; l++)
@@ -1005,9 +1033,7 @@ void pagefault_bench(int file_size)
 	}
 	fflush(fp);
 
-#if defined(USE_VMALLOC)
-	vfree(runs);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	free(runs);
 #else
 	munmap(runs, sizeof(struct Record) * LOOP);
@@ -1022,9 +1048,7 @@ void stack_pagefault_bench(int file_size)
 	char *addr;
 	struct Record *runs;
 
-#if defined(USE_VMALLOC)
-	runs = (struct Record *)vmalloc(sizeof(struct Record) * LOOP);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	runs = (struct Record *)malloc(sizeof(struct Record) * LOOP);
 #else
 	runs = (struct Record *)mmap(NULL, sizeof(struct Record) * LOOP, PROT_READ | PROT_WRITE,
@@ -1061,9 +1085,7 @@ void stack_pagefault_bench(int file_size)
 	}
 	fflush(fp);
 
-#if defined(USE_VMALLOC)
-	vfree(runs);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	free(runs);
 #else
 	munmap(runs, sizeof(struct Record) * LOOP);
@@ -1079,9 +1101,7 @@ static void fault_around_bench(int file_size)
 	int l, i;
 	char *addr;
 
-#if defined(USE_VMALLOC)
-	runs = (struct Record *)vmalloc(sizeof(struct Record) * LOOP);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	runs = (struct Record *)malloc(sizeof(struct Record) * LOOP);
 #else
 	runs = (struct Record *)mmap(NULL, sizeof(struct Record) * LOOP, PROT_READ | PROT_WRITE,
@@ -1113,9 +1133,7 @@ static void fault_around_bench(int file_size)
 	}
 	fflush(fp);
 
-#if defined(USE_VMALLOC)
-	vfree(runs);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	free(runs);
 #else
 	munmap(runs, sizeof(struct Record) * LOOP);
@@ -1136,10 +1154,7 @@ static void select_bench(size_t fd_count, int iters)
 	timeout.tv_sec = 0;
 	timeout.tv_usec = 0;
 
-#if defined(USE_VMALLOC)
-	fds = (int *)vmalloc(sizeof(int) * fd_count);
-	runs = (struct Record *)vmalloc(sizeof(struct Record) * iters);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	fds = (int *)malloc(sizeof(int) * fd_count);
 	runs = (struct Record *)malloc(sizeof(struct Record) * iters);
 #else
@@ -1195,10 +1210,7 @@ static void select_bench(size_t fd_count, int iters)
 	}
 	fflush(fp);
 
-#if defined(USE_VMALLOC)
-	vfree(fds);
-	vfree(runs);
-#elif defined(USE_MALLOC)
+#if defined(USE_MALLOC)
 	free(fds);
 	free(runs);
 #else
@@ -1594,53 +1606,14 @@ static void munmap_bench(size_t file_size)
 	return;
 }
 
-#ifdef BYPASS
-extern void set_bypass_limit(int val);
-extern void set_bypass_syscall(int val);
-#endif
-
-
 int main(void)
 {
 	int file_size, pf_size, retval;
 	int i = 0, percentage = 0;
 
-	#ifdef SYM_ELEVATE
-
-	
-	
-	dummy_data = malloc(0x1000);
-	dummy_data[0] = 0x18; //touch this for safety
-	
-	sym_elevate();
-
-	printf("Running with SYM_ELEVATE enabled, pid %d\n", current_pid());
-
-	//prepare data for symbi_fast_lower
-	symbi_query((void*)dummy_data);
-	
-	for (i=0; i<0x1000; i++)
-	switch (dummy_data[i]) {
-		case 0x18:
-		dummy_data[i] = 0x2b;
-		break;
-        case 0x10:
-		dummy_data[i] = 0x33;
-		break;
-		default:
-		break;
-	}
-	
-	symbi_fast_lower();
-	i = 0;
-	
-	#endif
-	
-
 	cpu_set_t set;
 	CPU_ZERO(&set);
 	CPU_SET(CPU1, &set);
-  /* printf("getpid() %d, sizeof(set) %d, &set %d", getpid(), sizeof(set), &set); */
 	retval = sched_setaffinity(getpid(), sizeof(set), &set);
 	if (retval == -1)
 		printf("[error] failed to set processor affinity.\n");
@@ -1651,18 +1624,11 @@ int main(void)
 	remove("test_file.txt");
 	remove("tmp_file.txt");
 
-// #ifdef SYM_SHORTCUT
-//   // initializes kallsym lib
-//   sym_lib_init();
-//   init_sym_shortcuts();
-// #endif
-
-#ifdef BYPASS
-	// set_bypass_limit(50);
-	// set_bypass_syscall(1);
-#endif
-
 	//*************************************
+
+#ifdef CONSTANT_PRIV
+	sym_elevate(); // Not tightly bracketing privilege, elevating for duration of program
+#endif
 
 #ifdef REF_TEST
 	printf("Starting reference benchmarks\n");
@@ -1991,6 +1957,10 @@ int main(void)
 	context_switch_bench();
 
 	fclose(fp);
+#endif
+
+#ifdef CONSTANT_PRIV
+	symbi_fast_lower(); // if not bracketing privilege, lower before exiting
 #endif
 }
 
