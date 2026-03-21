@@ -1962,5 +1962,6 @@ int main(void)
 #ifdef CONSTANT_PRIV
 	symbi_fast_lower(); // if not bracketing privilege, lower before exiting
 #endif
+	printf("LEBENCH FINISHED\n");
 }
 
