@@ -30,6 +30,7 @@
 #include "LINF/sym_all.h"
 #include "greeter.kh"
 #include "kernel.h"
+#include "kcut.h"
 
 #ifdef BRACKET_PRIV
 #ifdef CONSTANT_PRIV
@@ -150,7 +151,13 @@ void calc_average(struct timespec *average, struct timespec *sum, int size)
 	average->tv_sec = sum->tv_sec / size;
 }
 
-//---------------------------------------------------------------------
+//---------------------------------------------------------------------//
+#ifdef SYM_ELEVATE
+void* getppid_thunk(void* arg) {
+	return (void*)__x64_sys_getppid();
+}
+#endif
+
 void getppid_bench(void)
 {
 	struct timespec diff = {0, 0};
@@ -175,19 +182,13 @@ void getppid_bench(void)
 #ifdef SYM_SHORTCUT
 
 #ifdef BRACKET_STACK
-		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, __x64_sys_getppid());
+		stack_switch_kcall(kcut_tos_offset(), getppid_thunk, NULL);
 #else
 		__x64_sys_getppid();
 #endif
 
 #else
-
-#ifdef BRACKET_STACK
-		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, syscall(SYS_getppid));
-#else
-		syscall(SYS_getppid);
-#endif
-
+	syscall(SYS_getppid);
 #endif
 
 #ifdef BRACKET_PRIV
@@ -207,6 +208,17 @@ void getppid_bench(void)
 	munmap(runs, sizeof(struct Record) * loop);
 	return;
 }
+#ifdef SYM_ELEVATE
+struct kcut_clock_thunk_args {
+	int clock_id;
+	struct timespec *tp;
+};
+
+void* clock_gettime_thunk(void* targs) {
+	struct kcut_clock_thunk_args* args = (struct kcut_clock_thunk_args*) targs;
+	return (void*)clock_gettime(args->clock_id, args->tp);
+}
+#endif
 
 void clock_bench(void)
 {
@@ -227,8 +239,11 @@ void clock_bench(void)
 #endif
 
 #ifdef BRACKET_STACK
-		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, clock_gettime(CLOCK_MONOTONIC, &runs[l].start));
-		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, clock_gettime(CLOCK_MONOTONIC, &runs[l].end));
+		struct kcut_clock_thunk_args targs = {.clock_id = CLOCK_MONOTONIC, .tp = &runs[l].start };
+		stack_switch_kcall(kcut_tos_offset(), clock_gettime_thunk, &targs);
+		
+		targs.tp = &runs[l].end;
+		stack_switch_kcall(kcut_tos_offset(), clock_gettime_thunk, &targs);
 #else
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
@@ -294,6 +309,22 @@ void cpu_bench(void)
 	return;
 }
 
+#ifdef SYM_ELEVATE
+
+struct kcut_rw_thunk_args {
+	int fd;
+	char* buf;
+	int file_size;
+};
+
+
+void* ksys_write_thunk(void* targs) {
+	struct kcut_rw_thunk_args* args = (struct kcut_rw_thunk_args*) targs;
+	return (void*)(intptr_t)ksys_write(args->fd, args->buf, args->file_size);
+}
+#endif
+
+
 void write_bench(int file_size)
 {
 	struct timespec diff = {0, 0};
@@ -336,16 +367,14 @@ void write_bench(int file_size)
 
 #ifdef SYM_SHORTCUT
 #ifdef BRACKET_STACK
-		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, ksys_write(fd, buf, file_size));
+    	struct kcut_rw_thunk_args targs = {.fd = fd, .buf = buf, .file_size = file_size };
+		stack_switch_kcall(kcut_tos_offset(), kcut_ksys_write_thunk, &targs);
+
 #else
 		ksys_write(fd, buf, file_size);
 #endif
 #else
-#ifdef BRACKET_STACK
-		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, syscall(SYS_write, fd, buf, file_size));
-#else
-		syscall(SYS_write, fd, buf, file_size);
-#endif
+	syscall(SYS_write, fd, buf, file_size);
 #endif
 
 #ifdef BRACKET_PRIV
@@ -374,6 +403,14 @@ void write_bench(int file_size)
 
 	return;
 }
+
+#ifdef SYM_ELEVATE
+void* ksys_read_thunk(void* targs) {
+	struct kcut_rw_thunk_args* args = (struct kcut_rw_thunk_args*) targs;
+	return (void*)(intptr_t)ksys_read(args->fd, args->buf, args->file_size);
+}
+#endif
+
 
 void read_bench(int file_size)
 {
@@ -415,19 +452,18 @@ void read_bench(int file_size)
 #ifdef BRACKET_PRIV
 		sym_elevate();
 #endif
+
 #ifdef SYM_SHORTCUT
 #ifdef BRACKET_STACK
-		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, ksys_read(fd, buf, file_size));
+		struct kcut_rw_thunk_args targs = {.fd = fd, .buf = buf, .file_size = file_size };
+		stack_switch_kcall(kcut_tos_offset(), kcut_ksys_read_thunk, &targs);
 #else
 		ksys_read(fd, buf, file_size);
 #endif
 #else
-#ifdef BRACKET_STACK
-		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, syscall(SYS_read, fd, buf, file_size));
-#else
 		syscall(SYS_read, fd, buf, file_size);
 #endif
-#endif
+
 #ifdef BRACKET_PRIV
 		symbi_fast_lower();
 #endif
@@ -453,6 +489,22 @@ void read_bench(int file_size)
 
 	return;
 }
+#ifdef SYM_ELEVATE
+struct kcut_send_thunk_args {
+	int socket;
+	const void *message;
+	size_t length;
+	int flags;
+	const struct sockaddr *dest_addr;
+	socklen_t dest_len;
+};
+
+void* kcut_send_thunk(void* targs) {
+	struct kcut_send_thunk_args* args = (struct kcut_send_thunk_args*) targs;
+	return (void*)__sys_sendto(args->socket, args->message, args->length, args->flags, args->dest_addr, args->dest_len);
+}
+
+#endif
 
 #define sock "./my_sock"
 void send_bench(int msg_size)
@@ -589,21 +641,18 @@ void send_bench(int msg_size)
 #ifdef BRACKET_PRIV
 			sym_elevate();
 #endif
+
 #ifdef SYM_SHORTCUT
 #ifdef BRACKET_STACK
-			SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos,
-					retval = __sys_sendto(fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0));
+			struct kcut_send_thunk_args targs = {.socket = fd_client, .message = buf, .length = msg_size, .flags = MSG_DONTWAIT, .dest_addr = NULL, .dest_len = 0 };
+			retval = (int)stack_switch_kcall(kcut_tos_offset(), kcut_send_thunk, &targs);
 #else
 			retval = __sys_sendto(fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0);
 #endif
 #else
-#ifdef BRACKET_STACK
-			SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos,
-					retval = syscall(SYS_sendto, fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0));
-#else
 			retval = syscall(SYS_sendto, fd_client, buf, msg_size, MSG_DONTWAIT, NULL, 0);
 #endif
-#endif
+
 #ifdef BRACKET_PRIV
 			symbi_fast_lower();
 #endif
@@ -643,6 +692,24 @@ void send_bench(int msg_size)
 
 	return;
 }
+
+
+#ifdef SYM_ELEVATE
+struct kcut_recv_thunk_args {
+	int socket;
+	void *restrict buffer;
+	size_t length;
+	int flags;
+	struct sockaddr * address;
+	socklen_t * address_len;
+};
+
+void* kcut_recv_thunk(void* targs) {
+	struct kcut_recv_thunk_args* args = (struct kcut_recv_thunk_args*) targs;
+	return (void*)__sys_recvfrom(args->socket, args->buffer, args->length, args->flags, args->address, args->address_len);
+}
+#endif
+
 
 void recv_bench(int msg_size)
 {
@@ -739,19 +806,17 @@ void recv_bench(int msg_size)
 
 #ifdef SYM_SHORTCUT
 #ifdef BRACKET_STACK
-			SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos,
-					retval = __sys_recvfrom(fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL));
+
+			struct kcut_recv_thunk_args targs = {.socket = fd_connect, .buffer = buf, .length = msg_size, .flags = MSG_DONTWAIT, .address = NULL, .address_len = NULL };
+			retval = (int)stack_switch_kcall(kcut_tos_offset(), kcut_recv_thunk, &targs);
 #else
 			retval = __sys_recvfrom(fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
 #endif
 #else
-#ifdef BRACKET_STACK
-			SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos,
-					retval = syscall(SYS_recvfrom, fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL));
-#else
+
 			retval = syscall(SYS_recvfrom, fd_connect, buf, msg_size, MSG_DONTWAIT, NULL, NULL);
 #endif
-#endif
+
 #ifdef BRACKET_PRIV
 			symbi_fast_lower();
 #endif
@@ -843,6 +908,12 @@ void recv_bench(int msg_size)
 	return;
 }
 
+#ifdef SYM_ELEVATE
+void* kcut_fork_thunk(void* arg) {
+	return (void*)fork();
+}
+#endif
+
 struct timespec *forkTime;
 
 void fork_bench(void)
@@ -869,7 +940,7 @@ void fork_bench(void)
 		sym_elevate();
 #endif
 #ifdef BRACKET_STACK
-		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, forkId = fork());
+		forkId = (int)stack_switch_kcall(kcut_tos_offset(), kcut_fork_thunk, NULL);
 #else
 		forkId = fork();
 #endif
@@ -920,6 +991,19 @@ void *thrdfnc(void *args)
 	clock_gettime(CLOCK_MONOTONIC, (struct timespec*)args);
 	pthread_exit(0);
 }
+#ifdef SYM_ELEVATE
+struct kcut_pthread_thunk_args {
+	pthread_t *thread;
+	pthread_attr_t * attr;
+	void *(*start_routine)(void*);
+	void * arg;
+};
+
+void* kcut_pthread_create_thunk(void* targs) {
+	struct kcut_pthread_thunk_args* args = (struct kcut_pthread_thunk_args*) targs;
+	return (void*)pthread_create(args->thread, args->attr, args->start_routine, args->arg);
+}
+#endif
 
 void thread_bench(void)
 {
@@ -949,10 +1033,12 @@ void thread_bench(void)
 		sym_elevate();
 #endif
 #ifdef BRACKET_STACK
-		SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, pthread_create(&newThrd, NULL, thrdfnc, &threads[l]));
+		struct kcut_pthread_thunk_args args = { .thread = &newThrd, .attr = NULL, .start_routine = thrdfnc, .arg = &threads[l] };
+		stack_switch_kcall(kcut_tos_offset(), kcut_pthread_create_thunk, &args);
 #else
 		pthread_create(&newThrd, NULL, thrdfnc, &threads[l]);
 #endif
+
 #ifdef BRACKET_PRIV
 		symbi_fast_lower();
 #endif
@@ -979,6 +1065,23 @@ void thread_bench(void)
 
 	return;
 }
+
+#ifdef SYM_ELEVATE
+
+struct kcut_pagefault_thunk_args {
+	char* addr;
+	int i;
+};
+
+void* kcut_pagefault_thunk(void* arg) {
+	struct kcut_pagefault_thunk_args* args = (struct kcut_pagefault_thunk_args*) arg;
+	char* addr = args->addr;
+	int i = args->i;
+	addr[i] = i % 93 + 33;
+	return NULL;
+}
+
+#endif
 
 void pagefault_bench(int file_size)
 {
@@ -1009,7 +1112,8 @@ void pagefault_bench(int file_size)
 		while (i < file_size)
 		{
 #ifdef BRACKET_STACK
-			SYM_ON_KERN_STACK_DYNSYM_DO_CONST_PRIV(kcut_ktos, addr[i] = i % 93 + 33);
+			struct kcut_pagefault_thunk_args args = { .addr = addr, .i = i };
+			stack_switch_kcall(kcut_tos_offset(), kcut_pagefault_thunk, &args);
 #else
 			addr[i] = i % 93 + 33;
 #endif
