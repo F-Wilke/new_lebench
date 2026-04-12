@@ -355,7 +355,7 @@ struct kcut_rw_thunk_args {
 };
 
 
-void* ksys_write_thunk(void* targs) {
+void* kcut_ksys_write_thunk(void* targs) {
 	struct kcut_rw_thunk_args* args = (struct kcut_rw_thunk_args*) targs;
 	return (void*)(intptr_t)ksys_write(args->fd, args->buf, args->file_size);
 }
@@ -452,7 +452,7 @@ void write_bench(int file_size)
 }
 
 #ifdef SYM_ELEVATE
-void* ksys_read_thunk(void* targs) {
+void* kcut_ksys_read_thunk(void* targs) {
 	struct kcut_rw_thunk_args* args = (struct kcut_rw_thunk_args*) targs;
 	return (void*)(intptr_t)ksys_read(args->fd, args->buf, args->file_size);
 }
