@@ -73,7 +73,7 @@ static inline void set_kcut_ktos(void)
 
 #define MAX_SIZE 8192
 #define PF_MAX_SIZE 100 * 4096
-#define LOOP 100
+#define LOOP 1000
 #define STEP 256
 #define PF_STEP 4096
 #define CENT ((MAX_SIZE / STEP) / 100)
@@ -171,6 +171,12 @@ void getppid_bench(void)
 
 	memset(runs, 0, sizeof(struct Record) * loop);
 
+	#ifdef SYM_ELEVATE
+	#ifndef BRACKET_PRIV
+	sym_elevate();
+	#endif
+	#endif
+
 	for (l = 0; l < loop; l++)
 	{
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
@@ -197,6 +203,12 @@ void getppid_bench(void)
 
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 	}
+
+	#ifdef SYM_ELEVATE
+	#ifndef BRACKET_PRIV
+	symbi_fast_lower();
+	#endif
+	#endif
 
 	for (l = 0; l < loop; l++)
 	{
@@ -232,6 +244,12 @@ void clock_bench(void)
 
 	memset(runs, 0, sizeof(struct Record) * loop);
 
+	#ifdef SYM_ELEVATE
+	#ifndef BRACKET_PRIV
+	sym_elevate();
+	#endif
+	#endif
+
 	for (l = 0; l < loop; l++)
 	{
 #ifdef BRACKET_PRIV
@@ -253,6 +271,12 @@ void clock_bench(void)
 		symbi_fast_lower();
 #endif
 	}
+
+	#ifdef SYM_ELEVATE
+	#ifndef BRACKET_PRIV
+	symbi_fast_lower();
+	#endif
+	#endif
 
 	for (l = 0; l < loop; l++)
 	{
@@ -279,6 +303,13 @@ void cpu_bench(void)
 				MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
 	memset(runs, 0, sizeof(struct Record) * loop);
+
+	#ifdef SYM_ELEVATE
+	#ifndef BRACKET_PRIV
+	sym_elevate();
+	#endif
+	#endif
+
 	for (l = 0; l < loop; l++)
 	{
 		start = 9903290.789798798;
@@ -297,6 +328,12 @@ void cpu_bench(void)
 		symbi_fast_lower();
 #endif
 	}
+
+	#ifdef SYM_ELEVATE
+	#ifndef BRACKET_PRIV
+	symbi_fast_lower();
+	#endif
+	#endif
 
 	for (l = 0; l < loop; l++)
 	{
@@ -354,9 +391,13 @@ void write_bench(int file_size)
 	}
 
 	memset(runs, 0, sizeof(struct Record) * LOOP * 10);
-#ifdef SYM_ELEVATE
-  sym_elevate();
-#endif
+
+	#ifdef SYM_ELEVATE
+	#ifndef BRACKET_PRIV
+	sym_elevate();
+	#endif
+	#endif
+
 	for (l = 0; l < LOOP * 10; l++)
 	{
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
@@ -383,6 +424,12 @@ void write_bench(int file_size)
 
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 	}
+
+	#ifdef SYM_ELEVATE
+	#ifndef BRACKET_PRIV
+	symbi_fast_lower();
+	#endif
+	#endif
 
 	close(fd);
 
@@ -446,6 +493,12 @@ void read_bench(int file_size)
 
 	memset(runs, 0, sizeof(struct Record) * LOOP * 10);
 
+	#ifdef SYM_ELEVATE
+	#ifndef BRACKET_PRIV
+	sym_elevate();
+	#endif
+	#endif
+
 	for (l = 0; l < LOOP * 10; l++)
 	{
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
@@ -469,6 +522,12 @@ void read_bench(int file_size)
 #endif
 		clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 	}
+
+	#ifdef SYM_ELEVATE
+	#ifndef BRACKET_PRIV
+	symbi_fast_lower();
+	#endif
+	#endif
 
 	close(fd);
 
@@ -636,6 +695,11 @@ void send_bench(int msg_size)
 			// send the buffer over to child (for warm-up)
 			retval = send(fd_client, buf, msg_size, MSG_DONTWAIT);
 
+#ifdef SYM_ELEVATE
+#ifndef BRACKET_PRIV
+sym_elevate();
+#endif
+#endif
 			// send buffer over to child and measure latency
 			clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
 #ifdef BRACKET_PRIV
@@ -658,6 +722,12 @@ void send_bench(int msg_size)
 #endif
 			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
 
+
+#ifdef SYM_ELEVATE
+#ifndef BRACKET_PRIV
+symbi_fast_lower();
+#endif
+#endif
 			if (retval == -1)
 			{
 				printf("[error %d] failed to send. %s\n", errno, strerror(errno));
@@ -674,6 +744,7 @@ void send_bench(int msg_size)
 			wait(&status);
 		}
 	}
+
 
 	for (l = 0; l < LOOP; l++)
 	{
@@ -796,6 +867,11 @@ void recv_bench(int msg_size)
 
 			// recv data from child (for warm-up)
 			retval = recv(fd_connect, buf, msg_size, MSG_DONTWAIT);
+	#ifdef SYM_ELEVATE
+	#ifndef BRACKET_PRIV
+	sym_elevate();
+	#endif
+	#endif
 
 			// recv data from child and measure latency
 			clock_gettime(CLOCK_MONOTONIC, &runs[l].start);
@@ -821,6 +897,12 @@ void recv_bench(int msg_size)
 			symbi_fast_lower();
 #endif
 			clock_gettime(CLOCK_MONOTONIC, &runs[l].end);
+
+#ifdef SYM_ELEVATE
+#ifndef BRACKET_PRIV
+symbi_fast_lower();
+#endif
+#endif
 
 			if (retval == -1)
 			{
